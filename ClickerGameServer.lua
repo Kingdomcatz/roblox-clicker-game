@@ -9,7 +9,6 @@ if not remote then
     remote.Parent = ReplicatedStorage
 end
 
--- Pet definitions
 local PETS = {
     {Name = "Cat", Cost = 100, ClickBonus = 2, AutoBonus = 0.5, Rarity = "Common"},
     {Name = "Dog", Cost = 250, ClickBonus = 4, AutoBonus = 1, Rarity = "Common"},
@@ -20,7 +19,15 @@ local PETS = {
     {Name = "God Slayer", Cost = 200000, ClickBonus = 250, AutoBonus = 200, Rarity = "Legendary"}
 }
 
--- World definitions
+local BUFFS = {
+    {Name = "Golden Touch", Cost = 5000, Type = "click", Value = 1.15, Description = "+15% click power"},
+    {Name = "Turbo Engine", Cost = 12000, Type = "auto", Value = 1.2, Description = "+20% auto income"},
+    {Name = "Rebirth Boost", Cost = 25000, Type = "rebirth", Value = 1.25, Description = "+25% stronger rebirths"},
+    {Name = "Lucky Title", Cost = 1500, Type = "title", Value = "Lucky", Description = "Title unlocked: Lucky"},
+    {Name = "King Title", Cost = 5000, Type = "title", Value = "King", Description = "Title unlocked: King"},
+    {Name = "Legendary Egg", Cost = 20000, Type = "pet", Value = "Dragon", Description = "Unlocks Dragon pet"}
+}
+
 local WORLDS = {
     {Name = "Normal", Index = 1, UnlockCost = 0, CoinMultiplier = 1},
     {Name = "Desert", Index = 2, UnlockCost = 5000, CoinMultiplier = 2},
@@ -31,6 +38,24 @@ local WORLDS = {
 }
 
 local playerData = {}
+
+local function getPetInfo(petName)
+    for _, pet in ipairs(PETS) do
+        if pet.Name == petName then
+            return pet
+        end
+    end
+    return nil
+end
+
+local function getBuffInfo(buffName)
+    for _, buff in ipairs(BUFFS) do
+        if buff.Name == buffName then
+            return buff
+        end
+    end
+    return nil
+end
 
 local function getData(player)
     if not playerData[player] then
@@ -46,7 +71,13 @@ local function getData(player)
             UnlockedWorlds = {1},
             Pets = {},
             PetClickBonus = 0,
-            PetAutoBonus = 0
+            PetAutoBonus = 0,
+            Buffs = {},
+            Titles = {},
+            CurrentTitle = "None",
+            clickBuffMultiplier = 1,
+            autoBuffMultiplier = 1,
+            rebirthBuffMultiplier = 1
         }
     end
     return playerData[player]
@@ -71,20 +102,22 @@ end
 
 local function calculateClickPower(data)
     local baseClick = data.clickPower
+    local rebirthBoost = 1 + (data.Rebirths * 0.15)
     local worldMult = getWorldMultiplier(data.CurrentWorld)
-    return baseClick * worldMult + data.PetClickBonus
+    return (baseClick * worldMult * rebirthBoost * data.clickBuffMultiplier) + data.PetClickBonus
 end
 
 local function calculateAutoPerSec(data)
     local baseAuto = data.autoPerSecond
+    local rebirthBoost = 1 + (data.Rebirths * 0.2)
     local worldMult = getWorldMultiplier(data.CurrentWorld)
-    return baseAuto * worldMult + data.PetAutoBonus
+    return (baseAuto * worldMult * rebirthBoost * data.autoBuffMultiplier) + data.PetAutoBonus
 end
 
 local function syncClient(player)
     local data = getData(player)
     local unlockedWorlds = {}
-    
+
     for _, worldIdx in ipairs(data.UnlockedWorlds) do
         for _, world in ipairs(WORLDS) do
             if world.Index == worldIdx then
@@ -105,6 +138,18 @@ local function syncClient(player)
         })
     end
 
+    local availableBuffs = {}
+    for _, buff in ipairs(BUFFS) do
+        table.insert(availableBuffs, {
+            Name = buff.Name,
+            Cost = buff.Cost,
+            Type = buff.Type,
+            Value = buff.Value,
+            Description = buff.Description,
+            Owned = table.find(data.Buffs, buff.Name) ~= nil
+        })
+    end
+
     remote:FireClient(player, "Sync", {
         Coins = data.Coins,
         clickPower = calculateClickPower(data),
@@ -116,11 +161,18 @@ local function syncClient(player)
         Rebirths = data.Rebirths,
         TotalCoinsEarned = data.TotalCoinsEarned,
         CurrentWorld = data.CurrentWorld,
+        CurrentTitle = data.CurrentTitle,
         UnlockedWorlds = unlockedWorlds,
         AvailablePets = availablePets,
         OwnedPets = data.Pets,
         PetClickBonus = data.PetClickBonus,
-        PetAutoBonus = data.PetAutoBonus
+        PetAutoBonus = data.PetAutoBonus,
+        AvailableBuffs = availableBuffs,
+        OwnedBuffs = data.Buffs,
+        Titles = data.Titles,
+        clickBuffMultiplier = data.clickBuffMultiplier,
+        autoBuffMultiplier = data.autoBuffMultiplier,
+        rebirthBuffMultiplier = data.rebirthBuffMultiplier
     })
 end
 
@@ -139,16 +191,22 @@ local function createLeaderstats(player)
     rebirths.Value = 0
     rebirths.Parent = leaderstats
 
-    return coins, rebirths
+    local titleValue = Instance.new("StringValue")
+    titleValue.Name = "Title"
+    titleValue.Value = "None"
+    titleValue.Parent = leaderstats
+
+    return coins, rebirths, titleValue
 end
 
 Players.PlayerAdded:Connect(function(player)
-    local coinsStats, rebirtStats = createLeaderstats(player)
+    local coinsStats, rebirtStats, titleStat = createLeaderstats(player)
     local data = getData(player)
 
     local function updateDisplay()
         coinsStats.Value = data.Coins
         rebirtStats.Value = data.Rebirths
+        titleStat.Value = data.CurrentTitle
     end
 
     updateDisplay()
@@ -187,6 +245,7 @@ remote.OnServerEvent:Connect(function(player, action, ...)
         local clickPower = calculateClickPower(data)
         data.Coins += clickPower
         data.TotalCoinsEarned += clickPower
+
         local leaderstats = player:FindFirstChild("leaderstats")
         if leaderstats and leaderstats:FindFirstChild("Coins") then
             leaderstats.Coins.Value = data.Coins
@@ -229,13 +288,7 @@ remote.OnServerEvent:Connect(function(player, action, ...)
 
     if action == "BuyPet" then
         local petName = args[1]
-        local pet = nil
-        for _, p in ipairs(PETS) do
-            if p.Name == petName then
-                pet = p
-                break
-            end
-        end
+        local pet = getPetInfo(petName)
 
         if pet and data.Coins >= pet.Cost then
             if not table.find(data.Pets, petName) then
@@ -248,6 +301,50 @@ remote.OnServerEvent:Connect(function(player, action, ...)
                 if leaderstats and leaderstats:FindFirstChild("Coins") then
                     leaderstats.Coins.Value = data.Coins
                 end
+                syncClient(player)
+            end
+        end
+        return
+    end
+
+    if action == "BuyBuff" then
+        local buffName = args[1]
+        local buff = getBuffInfo(buffName)
+
+        if buff and data.Coins >= buff.Cost then
+            if not table.find(data.Buffs, buffName) then
+                data.Coins -= buff.Cost
+                table.insert(data.Buffs, buffName)
+
+                if buff.Type == "click" then
+                    data.clickBuffMultiplier *= buff.Value
+                elseif buff.Type == "auto" then
+                    data.autoBuffMultiplier *= buff.Value
+                elseif buff.Type == "rebirth" then
+                    data.rebirthBuffMultiplier *= buff.Value
+                elseif buff.Type == "title" then
+                    if not table.find(data.Titles, buff.Value) then
+                        table.insert(data.Titles, buff.Value)
+                    end
+                    data.CurrentTitle = buff.Value
+                elseif buff.Type == "pet" then
+                    local petToUnlock = getPetInfo(buff.Value)
+                    if petToUnlock and not table.find(data.Pets, buff.Value) then
+                        table.insert(data.Pets, buff.Value)
+                        data.PetClickBonus += petToUnlock.ClickBonus
+                        data.PetAutoBonus += petToUnlock.AutoBonus
+                    end
+                end
+
+                local leaderstats = player:FindFirstChild("leaderstats")
+                if leaderstats and leaderstats:FindFirstChild("Coins") then
+                    leaderstats.Coins.Value = data.Coins
+                end
+
+                if leaderstats and leaderstats:FindFirstChild("Title") then
+                    leaderstats.Title.Value = data.CurrentTitle
+                end
+
                 syncClient(player)
             end
         end
@@ -300,6 +397,8 @@ remote.OnServerEvent:Connect(function(player, action, ...)
             data.Pets = {}
             data.PetClickBonus = 0
             data.PetAutoBonus = 0
+            data.clickBuffMultiplier = math.max(1, data.clickBuffMultiplier * data.rebirthBuffMultiplier)
+            data.autoBuffMultiplier = math.max(1, data.autoBuffMultiplier * data.rebirthBuffMultiplier)
 
             local leaderstats = player:FindFirstChild("leaderstats")
             if leaderstats then
