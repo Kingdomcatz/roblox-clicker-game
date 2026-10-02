@@ -63,6 +63,7 @@ local function getData(player)
 			Pets = {}, Equipped = {},
 			Buffs = {}, Titles = {}, CurrentTitle = "None",
 			clickBuff = 1, autoBuff = 1, rebirthBuff = 1,
+			MaxRebirthsPerPurchase = 1,
 		}
 	end
 	return playerData[player]
@@ -70,7 +71,8 @@ end
 
 local function getClickCost(level) return 25 + (level - 1) * 25 end
 local function getAutoCost(level) return 50 + (level - 1) * 40 end
-local function getRebirthCost(data) return 100000 * (data.Rebirths + 1) end
+local function getRebirthCost(rebirthCount) return 50000 * (rebirthCount + 1) end
+local function getRebirthMaxCost(currentMax) return 100000 * (currentMax ^ 1.5) end
 
 local function worldMult(index)
 	for _, w in ipairs(WORLDS) do
@@ -167,11 +169,13 @@ local function syncClient(player)
 		Coins = data.Coins, TotalCoinsEarned = data.TotalCoinsEarned,
 		clickPower = calcClick(data), autoPerSecond = calcAuto(data),
 		clickCost = getClickCost(data.clickLevel), autoCost = getAutoCost(data.autoLevel),
-		Rebirths = data.Rebirths, RebirthCost = getRebirthCost(data),
+		Rebirths = data.Rebirths,
 		CurrentWorld = data.CurrentWorld, CurrentTitle = data.CurrentTitle,
 		Worlds = worlds, Pets = pets, Eggs = eggs, Buffs = buffs,
 		MaxEquipped = MAX_EQUIPPED, EquippedCount = equippedCount(data),
 		Titles = data.Titles,
+		MaxRebirthsPerPurchase = data.MaxRebirthsPerPurchase,
+		MaxRebirthUpgradeCost = getRebirthMaxCost(data.MaxRebirthsPerPurchase),
 	})
 end
 
@@ -332,16 +336,31 @@ remote.OnServerEvent:Connect(function(player, action, arg)
 			syncClient(player)
 		end
 
-	elseif action == "Rebirth" then
-		if data.TotalCoinsEarned >= getRebirthCost(data) then
-			data.Rebirths += 1
-			data.Coins = 0
-			data.TotalCoinsEarned = 0
-			data.clickPower, data.autoPerSecond = 1, 0
-			data.clickLevel, data.autoLevel = 1, 1
-			data.CurrentWorld = 1
-			data.UnlockedWorlds = {1}
-			-- pets, buffs and titles are kept after a rebirth
+	elseif action == "BuyRebirths" then
+		if typeof(arg) ~= "number" or arg < 1 or arg > data.MaxRebirthsPerPurchase then return end
+		local totalCost = 0
+		for i = 1, arg do
+			totalCost += getRebirthCost(data.Rebirths + i - 1)
+		end
+		if spend(totalCost) then
+			for i = 1, arg do
+				data.Rebirths += 1
+				data.Coins = 0
+				data.TotalCoinsEarned = 0
+				data.clickPower, data.autoPerSecond = 1, 0
+				data.clickLevel, data.autoLevel = 1, 1
+				data.CurrentWorld = 1
+				data.UnlockedWorlds = {1}
+				-- pets, buffs and titles are kept after a rebirth
+			end
+			syncClient(player)
+		end
+
+	elseif action == "UpgradeMaxRebirths" then
+		if data.MaxRebirthsPerPurchase >= 25 then return end
+		local cost = getRebirthMaxCost(data.MaxRebirthsPerPurchase)
+		if spend(cost) then
+			data.MaxRebirthsPerPurchase += 1
 			syncClient(player)
 		end
 	end
