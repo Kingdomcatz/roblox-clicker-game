@@ -13,9 +13,10 @@ local RARITY_COLORS = {
 	Epic = Color3.fromRGB(180, 90, 255),
 	Legendary = Color3.fromRGB(255, 190, 40),
 	Mythic = Color3.fromRGB(255, 70, 90),
+	Celestial = Color3.fromRGB(138, 43, 226),
+	Omnipotent = Color3.fromRGB(255, 215, 0),
 }
 
--- Number formatting: 4314.2499999 -> 4,314 ; 1500000 -> 1.50M
 local SUFFIXES = {"", "K", "M", "B", "T", "Qa", "Qi"}
 local function fmt(n)
 	n = math.floor(n or 0)
@@ -43,9 +44,7 @@ end
 
 local gui = new("ScreenGui", {Name = "ClickerGui", ResetOnSpawn = false}, player:WaitForChild("PlayerGui"))
 
-------------------------------------------------------------------
--- HUD (small, top-left, doesn't cover the map)
-------------------------------------------------------------------
+-- HUD (small, top-left)
 local hud = new("Frame", {Size = UDim2.new(0, 230, 0, 112), Position = UDim2.new(0, 12, 0, 12),
 	BackgroundColor3 = Color3.fromRGB(20, 22, 29), BackgroundTransparency = 0.15, BorderSizePixel = 0}, gui)
 round(hud, 12)
@@ -61,9 +60,7 @@ local clickLabel = hudLabel(2, Color3.new(1, 1, 1), 15)
 local autoLabel = hudLabel(3, Color3.new(1, 1, 1), 15)
 local infoLabel = hudLabel(4, Color3.fromRGB(190, 170, 255), 14)
 
-------------------------------------------------------------------
 -- Click button (bottom center)
-------------------------------------------------------------------
 local clickButton = new("TextButton", {Size = UDim2.new(0, 200, 0, 64), AnchorPoint = Vector2.new(0.5, 1),
 	Position = UDim2.new(0.5, 0, 1, -24), Text = "CLICK!", TextColor3 = Color3.new(1, 1, 1),
 	Font = Enum.Font.GothamBold, TextSize = 28, BackgroundColor3 = Color3.fromRGB(70, 180, 110)}, gui)
@@ -72,9 +69,7 @@ clickButton.MouseButton1Click:Connect(function()
 	remote:FireServer("Click")
 end)
 
-------------------------------------------------------------------
 -- Hatch popup
-------------------------------------------------------------------
 local hatchLabel = new("TextLabel", {Size = UDim2.new(0, 420, 0, 60), AnchorPoint = Vector2.new(0.5, 0),
 	Position = UDim2.new(0.5, 0, 0, 90), BackgroundColor3 = Color3.fromRGB(20, 22, 29), BackgroundTransparency = 0.1,
 	Font = Enum.Font.GothamBold, TextSize = 24, TextColor3 = Color3.new(1, 1, 1), Visible = false, Text = ""}, gui)
@@ -91,73 +86,87 @@ local function showHatch(name, rarity)
 	end)
 end
 
-------------------------------------------------------------------
--- Side shop panel (slides in from the right, tab always visible)
-------------------------------------------------------------------
-local PANEL_W = 390
-local panel = new("Frame", {Size = UDim2.new(0, PANEL_W, 0, 470), AnchorPoint = Vector2.new(0, 0.5),
-	Position = UDim2.new(1, 0, 0.5, 0), BackgroundColor3 = Color3.fromRGB(20, 22, 29), BorderSizePixel = 0}, gui)
-round(panel, 14)
+-- Side navigation buttons (right side)
+local navPanel = new("Frame", {Size = UDim2.new(0, 60, 0, 400), AnchorPoint = Vector2.new(1, 0.5),
+	Position = UDim2.new(1, -12, 0.5, 0), BackgroundTransparency = 1}, gui)
 
-local toggle = new("TextButton", {Size = UDim2.new(0, 54, 0, 120), AnchorPoint = Vector2.new(1, 0.5),
-	Position = UDim2.new(0, 0, 0.5, 0), Text = "SHOP\n<", TextColor3 = Color3.new(1, 1, 1),
-	Font = Enum.Font.GothamBold, TextSize = 16, BackgroundColor3 = Color3.fromRGB(75, 142, 255)}, panel)
-round(toggle, 12)
+local navButtons = {}
+local MENU_TABS = {
+	{Name = "Upgrades", Icon = "⚙️", Color = Color3.fromRGB(80, 120, 255)},
+	{Name = "Rebirths", Icon = "♻️", Color = Color3.fromRGB(160, 100, 250)},
+	{Name = "Eggs", Icon = "🥚", Color = Color3.fromRGB(60, 160, 90)},
+	{Name = "Pets", Icon = "🐉", Color = Color3.fromRGB(255, 100, 100)},
+	{Name = "Buffs", Icon = "⭐", Color = Color3.fromRGB(255, 190, 40)},
+	{Name = "Worlds", Icon = "🌍", Color = Color3.fromRGB(100, 200, 255)},
+}
 
-local open = false
-toggle.MouseButton1Click:Connect(function()
-	open = not open
-	toggle.Text = open and "SHOP\n>" or "SHOP\n<"
-	TweenService:Create(panel, TweenInfo.new(0.25, Enum.EasingStyle.Quad),
-		{Position = open and UDim2.new(1, -PANEL_W, 0.5, 0) or UDim2.new(1, 0, 0.5, 0)}):Play()
-end)
-
-local TABS = {"Upgrades", "Eggs", "Pets", "Buffs", "Worlds"}
 local currentTab = "Upgrades"
-local tabButtons = {}
-local tabBar = new("Frame", {Size = UDim2.new(1, -16, 0, 32), Position = UDim2.new(0, 8, 0, 8), BackgroundTransparency = 1}, panel)
-new("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4)}, tabBar)
+local panelOpen = false
+local PANEL_W = 350
 
-local content = new("ScrollingFrame", {Size = UDim2.new(1, -16, 1, -56), Position = UDim2.new(0, 8, 0, 48),
-	BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 5,
-	AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new()}, panel)
-new("UIListLayout", {Padding = UDim.new(0, 6)}, content)
+-- Main content panel (slides from right)
+local contentPanel = new("Frame", {Size = UDim2.new(0, PANEL_W, 0, 520), AnchorPoint = Vector2.new(0, 0.5),
+	Position = UDim2.new(1, 0, 0.5, 0), BackgroundColor3 = Color3.fromRGB(20, 22, 29), BorderSizePixel = 0}, gui)
+round(contentPanel, 14)
 
-local data -- latest full data from server
+local contentHeader = new("TextLabel", {Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = Color3.fromRGB(44, 47, 60), BorderSizePixel = 0,
+	Font = Enum.Font.GothamBold, TextSize = 18, TextColor3 = Color3.new(1, 1, 1), Text = currentTab}, contentPanel)
+new("UICorner", {CornerRadius = UDim.new(0, 14)}, contentHeader)
+
+local content = new("ScrollingFrame", {Size = UDim2.new(1, -12, 1, -54), Position = UDim2.new(0, 6, 0, 42),
+	BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4,
+	AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new()}, contentPanel)
+new("UIListLayout", {Padding = UDim.new(0, 4)}, content)
+
+local data
+local GREEN, BLUE, ORANGE, PURPLE, GREY = Color3.fromRGB(60, 160, 90), Color3.fromRGB(80, 120, 255),
+	Color3.fromRGB(240, 120, 70), Color3.fromRGB(160, 100, 250), Color3.fromRGB(90, 92, 105)
 
 local function row(title, desc, btnText, color, callback, titleColor)
 	local f = new("Frame", {Size = UDim2.new(1, -8, 0, 64), BackgroundColor3 = Color3.fromRGB(44, 47, 60), BorderSizePixel = 0}, content)
 	round(f, 10)
-	new("TextLabel", {Text = title, Size = UDim2.new(1, -112, 0, 22), Position = UDim2.new(0, 8, 0, 5), BackgroundTransparency = 1,
-		TextColor3 = titleColor or Color3.new(1, 1, 1), Font = Enum.Font.GothamBold, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Left}, f)
-	new("TextLabel", {Text = desc, Size = UDim2.new(1, -112, 0, 32), Position = UDim2.new(0, 8, 0, 27), BackgroundTransparency = 1,
-		TextColor3 = Color3.fromRGB(200, 200, 205), Font = Enum.Font.Gotham, TextSize = 11, TextWrapped = true,
+	new("TextLabel", {Text = title, Size = UDim2.new(1, -102, 0, 22), Position = UDim2.new(0, 8, 0, 5), BackgroundTransparency = 1,
+		TextColor3 = titleColor or Color3.new(1, 1, 1), Font = Enum.Font.GothamBold, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left}, f)
+	new("TextLabel", {Text = desc, Size = UDim2.new(1, -102, 0, 32), Position = UDim2.new(0, 8, 0, 27), BackgroundTransparency = 1,
+		TextColor3 = Color3.fromRGB(200, 200, 205), Font = Enum.Font.Gotham, TextSize = 10, TextWrapped = true,
 		TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top}, f)
-	local b = new("TextButton", {Text = btnText, Size = UDim2.new(0, 96, 0, 42), Position = UDim2.new(1, -104, 0.5, -21),
-		BackgroundColor3 = color, TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold, TextSize = 13, TextWrapped = true}, f)
+	local b = new("TextButton", {Text = btnText, Size = UDim2.new(0, 90, 0, 36), Position = UDim2.new(1, -96, 0.5, -18),
+		BackgroundColor3 = color, TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold, TextSize = 11, TextWrapped = true}, f)
 	round(b, 8)
 	if callback then b.MouseButton1Click:Connect(callback) end
 end
 
-local GREEN, BLUE, ORANGE, PURPLE, GREY = Color3.fromRGB(60, 160, 90), Color3.fromRGB(80, 120, 255),
-	Color3.fromRGB(240, 120, 70), Color3.fromRGB(160, 100, 250), Color3.fromRGB(90, 92, 105)
+local function getRebirthCost(count)
+	return 50000 * (count + 1)
+end
 
 local function render()
 	for _, c in ipairs(content:GetChildren()) do
 		if c:IsA("Frame") then c:Destroy() end
 	end
-	for name, b in pairs(tabButtons) do
-		b.BackgroundColor3 = (name == currentTab) and BLUE or GREY
-	end
+	contentHeader.Text = currentTab
 	if not data then return end
 
 	if currentTab == "Upgrades" then
 		row("Upgrade Click", "+1 base click power", fmt(data.clickCost) .. " coins", BLUE, function() remote:FireServer("UpgradeClick") end)
 		row("Upgrade Auto", "+1 base coins per second", fmt(data.autoCost) .. " coins", ORANGE, function() remote:FireServer("UpgradeAuto") end)
-		local ready = data.TotalCoinsEarned >= data.RebirthCost
-		row("Rebirth (" .. data.Rebirths .. ")",
-			"Needs " .. fmt(data.RebirthCost) .. " total earned (you: " .. fmt(data.TotalCoinsEarned) .. "). Resets coins, upgrades & worlds. Keeps pets, buffs, titles. Permanent income boost!",
-			ready and "REBIRTH!" or "Locked", ready and PURPLE or GREY, function() remote:FireServer("Rebirth") end)
+
+	elseif currentTab == "Rebirths" then
+		row("Buy 1 Rebirth", "Cost: " .. fmt(getRebirthCost(data.Rebirths)), fmt(getRebirthCost(data.Rebirths)) .. " coins", GREEN,
+			function() remote:FireServer("BuyRebirths", 1) end)
+		for i = 2, math.min(data.MaxRebirthsPerPurchase, 5) do
+			local total = 0
+			for j = 1, i do total += getRebirthCost(data.Rebirths + j - 1) end
+			row("Buy " .. i .. " Rebirths", "Get " .. i .. " rebirths at once", fmt(total) .. " coins", GREEN,
+				function() remote:FireServer("BuyRebirths", i) end)
+		end
+		if data.MaxRebirthsPerPurchase < 25 then
+			row("Upgrade Max Rebirths", "Currently: " .. data.MaxRebirthsPerPurchase .. "/25",
+				"Upgrade\n" .. fmt(data.MaxRebirthUpgradeCost), PURPLE,
+				function() remote:FireServer("UpgradeMaxRebirths") end)
+		else
+			row("Max Rebirths", "You can now buy up to 25 rebirths at once!", "MAX", GREY, nil)
+		end
 
 	elseif currentTab == "Eggs" then
 		for _, egg in ipairs(data.Eggs) do
@@ -165,7 +174,7 @@ local function render()
 		end
 
 	elseif currentTab == "Pets" then
-		row("Equipped: " .. data.EquippedCount .. "/" .. data.MaxEquipped, "Equipped pets float around you and give bonuses.", "", GREY, nil)
+		row("Equipped: " .. data.EquippedCount .. "/" .. data.MaxEquipped, "Equipped pets float around you.", "", GREY, nil)
 		for i, pet in ipairs(data.Pets) do
 			row(pet.Name .. " [" .. pet.Rarity .. "]", "+" .. fmt(pet.Click) .. " click  |  +" .. fmt(pet.Auto) .. " auto",
 				pet.Equipped and "Unequip" or "Equip", pet.Equipped and ORANGE or GREEN,
@@ -196,20 +205,41 @@ local function render()
 	end
 end
 
-for i, name in ipairs(TABS) do
-	local b = new("TextButton", {Text = name, Size = UDim2.new(0.2, -4, 1, 0), Font = Enum.Font.GothamBold, TextSize = 11,
-		TextColor3 = Color3.new(1, 1, 1), BackgroundColor3 = GREY, LayoutOrder = i}, tabBar)
-	round(b, 8)
-	tabButtons[name] = b
-	b.MouseButton1Click:Connect(function()
-		currentTab = name
+for i, tab in ipairs(MENU_TABS) do
+	local btn = new("TextButton", {Size = UDim2.new(1, 0, 0, 52), BackgroundColor3 = Color3.fromRGB(44, 47, 60),
+		Font = Enum.Font.GothamBold, TextSize = 24, TextColor3 = Color3.new(1, 1, 1), Text = tab.Icon,
+		LayoutOrder = i}, navPanel)
+	round(btn, 10)
+	navButtons[tab.Name] = btn
+	
+	btn.MouseButton1Click:Connect(function()
+		currentTab = tab.Name
+		panelOpen = true
+		for name, b in pairs(navButtons) do
+			b.BackgroundColor3 = (name == tab.Name) and tab.Color or Color3.fromRGB(44, 47, 60)
+		end
+		TweenService:Create(contentPanel, TweenInfo.new(0.25, Enum.EasingStyle.Quad),
+			{Position = UDim2.new(1, -PANEL_W - 12, 0.5, 0)}):Play()
 		render()
 	end)
 end
 
-------------------------------------------------------------------
--- Floating pets around the player
-------------------------------------------------------------------
+-- Close panel when clicking outside
+local closeArea = new("TextButton", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = "", ZIndex = 0}, gui)
+closeArea.MouseButton1Click:Connect(function()
+	if panelOpen then
+		panelOpen = false
+		TweenService:Create(contentPanel, TweenInfo.new(0.25, Enum.EasingStyle.Quad),
+			{Position = UDim2.new(1, 0, 0.5, 0)}):Play()
+		for _, b in pairs(navButtons) do
+			b.BackgroundColor3 = Color3.fromRGB(44, 47, 60)
+		end
+	end
+end)
+
+new("UIListLayout", {FillDirection = Enum.FillDirection.Vertical, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder}, navPanel)
+
+-- Floating pets
 local petFolder = new("Folder", {Name = "MyPets"}, workspace)
 local petParts = {}
 
@@ -244,9 +274,7 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
-------------------------------------------------------------------
 -- Server events
-------------------------------------------------------------------
 local function updateHud()
 	if not data then return end
 	coinLabel.Text = "Coins: " .. fmt(data.Coins)
