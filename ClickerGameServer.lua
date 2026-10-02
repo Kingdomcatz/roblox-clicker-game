@@ -13,24 +13,78 @@ local MAX_EQUIPPED = 5
 local MAX_PETS = 50
 local rng = Random.new()
 
--- All values are whole numbers so nothing ever shows long decimals
+-- Expanded pet roster with rarities
 local PETS = {
+	-- Common
 	Cat = {Click = 2, Auto = 1, Rarity = "Common"},
 	Dog = {Click = 3, Auto = 2, Rarity = "Common"},
 	Bunny = {Click = 5, Auto = 3, Rarity = "Common"},
+	Parrot = {Click = 4, Auto = 2, Rarity = "Common"},
+	Fish = {Click = 1, Auto = 1, Rarity = "Common"},
+	Turtle = {Click = 2, Auto = 2, Rarity = "Common"},
+	
+	-- Rare
 	Fox = {Click = 12, Auto = 8, Rarity = "Rare"},
-	Dragon = {Click = 25, Auto = 15, Rarity = "Rare"},
+	Wolf = {Click = 15, Auto = 10, Rarity = "Rare"},
+	Eagle = {Click = 18, Auto = 12, Rarity = "Rare"},
+	Snake = {Click = 10, Auto = 7, Rarity = "Rare"},
+	Dolphin = {Click = 14, Auto = 9, Rarity = "Rare"},
+	Tiger = {Click = 20, Auto = 13, Rarity = "Rare"},
+	
+	-- Epic
+	Dragon = {Click = 25, Auto = 15, Rarity = "Epic"},
 	Phoenix = {Click = 60, Auto = 40, Rarity = "Epic"},
 	Unicorn = {Click = 120, Auto = 80, Rarity = "Epic"},
+	Gryphon = {Click = 80, Auto = 50, Rarity = "Epic"},
+	Kraken = {Click = 70, Auto = 45, Rarity = "Epic"},
+	Chimera = {Click = 100, Auto = 65, Rarity = "Epic"},
+	
+	-- Legendary
 	["Shadow Beast"] = {Click = 300, Auto = 200, Rarity = "Legendary"},
+	Cerberus = {Click = 350, Auto = 230, Rarity = "Legendary"},
+	["Ice Titan"] = {Click = 320, Auto = 210, Rarity = "Legendary"},
+	["Lava Lord"] = {Click = 340, Auto = 225, Rarity = "Legendary"},
+	Basilisk = {Click = 330, Auto = 220, Rarity = "Legendary"},
+	["Time Warden"] = {Click = 360, Auto = 240, Rarity = "Legendary"},
+	
+	-- Mythic
 	["God Slayer"] = {Click = 800, Auto = 600, Rarity = "Mythic"},
+	["Celestial Dragon"] = {Click = 900, Auto = 650, Rarity = "Mythic"},
+	Leviathan = {Click = 1000, Auto = 700, Rarity = "Mythic"},
+	["Void Entity"] = {Click = 950, Auto = 675, Rarity = "Mythic"},
+	["Cosmic Beast"] = {Click = 1100, Auto = 750, Rarity = "Mythic"},
+	
+	-- Celestial (Ultra Rare)
+	["Omnipotent One"] = {Click = 2000, Auto = 1200, Rarity = "Celestial"},
+	["Supreme Deity"] = {Click = 2200, Auto = 1300, Rarity = "Celestial"},
+	["Infinite Spirit"] = {Click = 2100, Auto = 1250, Rarity = "Celestial"},
+	
+	-- Omnipotent (Rarest)
+	["The Absolute"] = {Click = 5000, Auto = 3000, Rarity = "Omnipotent"},
 }
 
 local EGGS = {
-	{Name = "Basic Egg", Cost = 100, Pets = {{"Cat", 45}, {"Dog", 35}, {"Bunny", 17}, {"Fox", 3}}},
-	{Name = "Rare Egg", Cost = 2500, Pets = {{"Bunny", 30}, {"Fox", 40}, {"Dragon", 25}, {"Phoenix", 5}}},
-	{Name = "Epic Egg", Cost = 40000, Pets = {{"Dragon", 35}, {"Phoenix", 35}, {"Unicorn", 25}, {"Shadow Beast", 5}}},
-	{Name = "Mythic Egg", Cost = 500000, Pets = {{"Unicorn", 50}, {"Shadow Beast", 40}, {"God Slayer", 10}}},
+	{Name = "Basic Egg", Cost = 100, Pets = {
+		{"Cat", 25}, {"Dog", 25}, {"Bunny", 20}, {"Parrot", 15}, {"Fish", 10}, {"Turtle", 5}
+	}},
+	{Name = "Rare Egg", Cost = 2500, Pets = {
+		{"Bunny", 15}, {"Fox", 30}, {"Wolf", 25}, {"Eagle", 20}, {"Snake", 10}
+	}},
+	{Name = "Epic Egg", Cost = 40000, Pets = {
+		{"Dragon", 30}, {"Phoenix", 25}, {"Unicorn", 20}, {"Gryphon", 15}, {"Kraken", 10}
+	}},
+	{Name = "Legendary Egg", Cost = 500000, Pets = {
+		{"Shadow Beast", 25}, {"Cerberus", 25}, {"Ice Titan", 20}, {"Lava Lord", 15}, {"Basilisk", 15}
+	}},
+	{Name = "Mythic Egg", Cost = 5000000, Pets = {
+		{"God Slayer", 20}, {"Celestial Dragon", 25}, {"Leviathan", 20}, {"Void Entity", 20}, {"Cosmic Beast", 15}
+	}},
+	{Name = "Celestial Egg", Cost = 50000000, Pets = {
+		{"Omnipotent One", 35}, {"Supreme Deity", 35}, {"Infinite Spirit", 30}
+	}},
+	{Name = "Omnipotent Egg", Cost = 500000000, Pets = {
+		{"The Absolute", 100}
+	}},
 }
 
 local BUFFS = {
@@ -120,7 +174,6 @@ local function updateLeaderstats(player, data)
 	ls.Title.Value = data.CurrentTitle
 end
 
--- light update (used for clicks + auto income)
 local function pushCoins(player, data)
 	updateLeaderstats(player, data)
 	remote:FireClient(player, "Coins", {
@@ -131,7 +184,6 @@ local function pushCoins(player, data)
 	})
 end
 
--- full update (used when something is bought / changed)
 local function syncClient(player)
 	local data = getData(player)
 	updateLeaderstats(player, data)
@@ -351,7 +403,6 @@ remote.OnServerEvent:Connect(function(player, action, arg)
 				data.clickLevel, data.autoLevel = 1, 1
 				data.CurrentWorld = 1
 				data.UnlockedWorlds = {1}
-				-- pets, buffs and titles are kept after a rebirth
 			end
 			syncClient(player)
 		end
