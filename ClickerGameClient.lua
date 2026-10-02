@@ -1,540 +1,278 @@
--- StarterPlayer > StarterPlayerScripts > ClickerGameClient.lua
-local player = game.Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
-local replicatedStorage = game:GetService("ReplicatedStorage")
-local remote = replicatedStorage:WaitForChild("ClickerRemote")
+-- StarterPlayer > StarterPlayerScripts > ClickerGameClient (LocalScript)
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "ClickerGui"
-screenGui.ResetOnSpawn = false
-screenGui.Parent = playerGui
+local player = Players.LocalPlayer
+local remote = ReplicatedStorage:WaitForChild("ClickerRemote")
 
-local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 980, 0, 620)
-mainFrame.Position = UDim2.new(0.5, -490, 0.5, -310)
-mainFrame.BackgroundColor3 = Color3.fromRGB(20, 22, 29)
-mainFrame.BorderSizePixel = 0
-mainFrame.Parent = screenGui
+local RARITY_COLORS = {
+	Common = Color3.fromRGB(200, 200, 200),
+	Rare = Color3.fromRGB(80, 160, 255),
+	Epic = Color3.fromRGB(180, 90, 255),
+	Legendary = Color3.fromRGB(255, 190, 40),
+	Mythic = Color3.fromRGB(255, 70, 90),
+}
 
-local mainCorner = Instance.new("UICorner")
-mainCorner.CornerRadius = UDim.new(0, 18)
-mainCorner.Parent = mainFrame
-
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, -30, 0, 42)
-title.Position = UDim2.new(0, 15, 0, 10)
-title.BackgroundTransparency = 1
-title.Text = "Clicker Empire"
-title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.Font = Enum.Font.GothamBold
-title.TextSize = 28
-title.Parent = mainFrame
-
-local coinLabel = Instance.new("TextLabel")
-coinLabel.Size = UDim2.new(0, 260, 0, 30)
-coinLabel.Position = UDim2.new(0, 20, 0, 62)
-coinLabel.BackgroundTransparency = 1
-coinLabel.Text = "Coins: 0"
-coinLabel.TextColor3 = Color3.fromRGB(255, 215, 90)
-coinLabel.Font = Enum.Font.GothamSemibold
-coinLabel.TextSize = 22
-coinLabel.Parent = mainFrame
-
-local rebirthLabel = Instance.new("TextLabel")
-rebirthLabel.Size = UDim2.new(0, 180, 0, 24)
-rebirthLabel.Position = UDim2.new(0, 300, 0, 64)
-rebirthLabel.BackgroundTransparency = 1
-rebirthLabel.Text = "Rebirths: 0"
-rebirthLabel.TextColor3 = Color3.fromRGB(200, 170, 255)
-rebirthLabel.Font = Enum.Font.GothamSemibold
-rebirthLabel.TextSize = 18
-rebirthLabel.Parent = mainFrame
-
-local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(0, 200, 0, 24)
-titleLabel.Position = UDim2.new(0, 500, 0, 64)
-titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "Title: None"
-titleLabel.TextColor3 = Color3.fromRGB(120, 220, 160)
-titleLabel.Font = Enum.Font.GothamSemibold
-titleLabel.TextSize = 18
-titleLabel.Parent = mainFrame
-
-local clickLabel = Instance.new("TextLabel")
-clickLabel.Size = UDim2.new(0, 220, 0, 24)
-clickLabel.Position = UDim2.new(0, 20, 0, 100)
-clickLabel.BackgroundTransparency = 1
-clickLabel.Text = "Per Click: 1"
-clickLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-clickLabel.Font = Enum.Font.Gotham
-clickLabel.TextSize = 18
-clickLabel.Parent = mainFrame
-
-local autoLabel = Instance.new("TextLabel")
-autoLabel.Size = UDim2.new(0, 220, 0, 24)
-autoLabel.Position = UDim2.new(0, 20, 0, 128)
-autoLabel.BackgroundTransparency = 1
-autoLabel.Text = "Auto / sec: 0"
-autoLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-autoLabel.Font = Enum.Font.Gotham
-autoLabel.TextSize = 18
-autoLabel.Parent = mainFrame
-
-local worldLabel = Instance.new("TextLabel")
-worldLabel.Size = UDim2.new(0, 220, 0, 24)
-worldLabel.Position = UDim2.new(0, 300, 0, 100)
-worldLabel.BackgroundTransparency = 1
-worldLabel.Text = "World: Normal"
-worldLabel.TextColor3 = Color3.fromRGB(110, 220, 140)
-worldLabel.Font = Enum.Font.Gotham
-worldLabel.TextSize = 18
-worldLabel.Parent = mainFrame
-
-local totalLabel = Instance.new("TextLabel")
-totalLabel.Size = UDim2.new(0, 220, 0, 24)
-totalLabel.Position = UDim2.new(0, 300, 0, 128)
-totalLabel.BackgroundTransparency = 1
-totalLabel.Text = "Total Earned: 0"
-totalLabel.TextColor3 = Color3.fromRGB(120, 200, 255)
-totalLabel.Font = Enum.Font.Gotham
-totalLabel.TextSize = 18
-totalLabel.Parent = mainFrame
-
-local clickButton = Instance.new("TextButton")
-clickButton.Size = UDim2.new(0, 220, 0, 120)
-clickButton.Position = UDim2.new(0.5, -110, 0, 170)
-clickButton.Text = "CLICK!"
-clickButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-clickButton.Font = Enum.Font.GothamBold
-clickButton.TextSize = 30
-clickButton.BackgroundColor3 = Color3.fromRGB(70, 180, 110)
-clickButton.Parent = mainFrame
-
-local clickButtonCorner = Instance.new("UICorner")
-clickButtonCorner.CornerRadius = UDim.new(0, 18)
-clickButtonCorner.Parent = clickButton
-
-local upgradeClick = Instance.new("TextButton")
-upgradeClick.Size = UDim2.new(0, 180, 0, 48)
-upgradeClick.Position = UDim2.new(0, 20, 1, -98)
-upgradeClick.Text = "Upgrade Click"
-upgradeClick.TextColor3 = Color3.fromRGB(255, 255, 255)
-upgradeClick.Font = Enum.Font.GothamSemibold
-upgradeClick.TextSize = 16
-upgradeClick.BackgroundColor3 = Color3.fromRGB(90, 120, 255)
-upgradeClick.Parent = mainFrame
-
-local upgradeAuto = Instance.new("TextButton")
-upgradeAuto.Size = UDim2.new(0, 180, 0, 48)
-upgradeAuto.Position = UDim2.new(0.5, -90, 1, -98)
-upgradeAuto.Text = "Upgrade Auto"
-upgradeAuto.TextColor3 = Color3.fromRGB(255, 255, 255)
-upgradeAuto.Font = Enum.Font.GothamSemibold
-upgradeAuto.TextSize = 16
-upgradeAuto.BackgroundColor3 = Color3.fromRGB(255, 122, 80)
-upgradeAuto.Parent = mainFrame
-
-local rebirthButton = Instance.new("TextButton")
-rebirthButton.Size = UDim2.new(0, 180, 0, 48)
-rebirthButton.Position = UDim2.new(1, -200, 1, -98)
-rebirthButton.Text = "Rebirth"
-rebirthButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-rebirthButton.Font = Enum.Font.GothamSemibold
-rebirthButton.TextSize = 16
-rebirthButton.BackgroundColor3 = Color3.fromRGB(170, 110, 255)
-rebirthButton.Parent = mainFrame
-
-local worldPanel = Instance.new("ScrollingFrame")
-worldPanel.Size = UDim2.new(0, 450, 0, 140)
-worldPanel.Position = UDim2.new(0, 20, 0, 310)
-worldPanel.BackgroundColor3 = Color3.fromRGB(42, 45, 56)
-worldPanel.BorderSizePixel = 0
-worldPanel.ScrollBarThickness = 6
-worldPanel.Parent = mainFrame
-
-local worldCorner = Instance.new("UICorner")
-worldCorner.CornerRadius = UDim.new(0, 12)
-worldCorner.Parent = worldPanel
-
-local petPanel = Instance.new("ScrollingFrame")
-petPanel.Size = UDim2.new(0, 450, 0, 200)
-petPanel.Position = UDim2.new(0, 500, 0, 310)
-petPanel.BackgroundColor3 = Color3.fromRGB(42, 45, 56)
-petPanel.BorderSizePixel = 0
-petPanel.ScrollBarThickness = 6
-petPanel.Parent = mainFrame
-
-local petCorner = Instance.new("UICorner")
-petCorner.CornerRadius = UDim.new(0, 12)
-petCorner.Parent = petPanel
-
-local buffPanel = Instance.new("ScrollingFrame")
-buffPanel.Size = UDim2.new(0, 930, 0, 160)
-buffPanel.Position = UDim2.new(0, 20, 0, 145)
-buffPanel.BackgroundColor3 = Color3.fromRGB(42, 45, 56)
-buffPanel.BorderSizePixel = 0
-buffPanel.ScrollBarThickness = 6
-buffPanel.Visible = false
-buffPanel.Parent = mainFrame
-
-local buffCorner = Instance.new("UICorner")
-buffCorner.CornerRadius = UDim.new(0, 12)
-buffCorner.Parent = buffPanel
-
-local tabBar = Instance.new("Frame")
-tabBar.Size = UDim2.new(0, 280, 0, 32)
-tabBar.Position = UDim2.new(0.5, -140, 0, 150)
-tabBar.BackgroundColor3 = Color3.fromRGB(54, 58, 68)
-tabBar.BorderSizePixel = 0
-tabBar.Parent = mainFrame
-
-local tabCorner = Instance.new("UICorner")
-tabCorner.CornerRadius = UDim.new(0, 10)
-tabCorner.Parent = tabBar
-
-local buttonShop = Instance.new("TextButton")
-buttonShop.Size = UDim2.new(0, 140, 1, 0)
-buttonShop.Position = UDim2.new(0, 0, 0, 0)
-buttonShop.BackgroundColor3 = Color3.fromRGB(75, 142, 255)
-buttonShop.Text = "Shop"
-buttonShop.TextColor3 = Color3.fromRGB(255, 255, 255)
-buttonShop.Font = Enum.Font.GothamSemibold
-buttonShop.TextSize = 16
-buttonShop.Parent = tabBar
-
-local buttonWorlds = Instance.new("TextButton")
-buttonWorlds.Size = UDim2.new(0, 140, 1, 0)
-buttonWorlds.Position = UDim2.new(0, 140, 0, 0)
-buttonWorlds.BackgroundColor3 = Color3.fromRGB(84, 90, 110)
-buttonWorlds.Text = "Worlds"
-buttonWorlds.TextColor3 = Color3.fromRGB(255, 255, 255)
-buttonWorlds.Font = Enum.Font.GothamSemibold
-buttonWorlds.TextSize = 16
-buttonWorlds.Parent = tabBar
-
-local function hideAllPanels()
-    buffPanel.Visible = false
-    worldPanel.Visible = false
-    petPanel.Visible = false
+-- Number formatting: 4314.2499999 -> 4,314 ; 1500000 -> 1.50M
+local SUFFIXES = {"", "K", "M", "B", "T", "Qa", "Qi"}
+local function fmt(n)
+	n = math.floor(n or 0)
+	if n < 10000 then
+		return tostring(n):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+	end
+	local i = 1
+	while n >= 1000 and i < #SUFFIXES do
+		n /= 1000
+		i += 1
+	end
+	return string.format("%.2f%s", n, SUFFIXES[i])
 end
 
-buttonShop.MouseButton1Click:Connect(function()
-    hideAllPanels()
-    buffPanel.Visible = true
-end)
-
-buttonWorlds.MouseButton1Click:Connect(function()
-    hideAllPanels()
-    worldPanel.Visible = true
-    petPanel.Visible = true
-end)
-
-local templateButton = Instance.new("TextButton")
-templateButton.Size = UDim2.new(0, 200, 0, 76)
-templateButton.BackgroundColor3 = Color3.fromRGB(80, 80, 90)
-templateButton.BorderSizePixel = 0
-templateButton.Text = ""
-templateButton.Visible = false
-templateButton.Parent = buffPanel
-
-local templateCorner = Instance.new("UICorner")
-templateCorner.CornerRadius = UDim.new(0, 10)
-templateCorner.Parent = templateButton
-
-local itemTitle = Instance.new("TextLabel")
-itemTitle.Name = "ItemTitle"
-itemTitle.Size = UDim2.new(1, -12, 0, 22)
-itemTitle.Position = UDim2.new(0, 6, 0, 8)
-itemTitle.BackgroundTransparency = 1
-itemTitle.Text = "Buff"
-itemTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-itemTitle.Font = Enum.Font.GothamBold
-itemTitle.TextSize = 15
-itemTitle.Parent = templateButton
-
-local itemDesc = Instance.new("TextLabel")
-itemDesc.Name = "ItemDesc"
-itemDesc.Size = UDim2.new(1, -12, 0, 18)
-itemDesc.Position = UDim2.new(0, 6, 0, 30)
-itemDesc.BackgroundTransparency = 1
-itemDesc.Text = "Desc"
-itemDesc.TextColor3 = Color3.fromRGB(210, 210, 210)
-itemDesc.Font = Enum.Font.Gotham
-itemDesc.TextSize = 12
-itemDesc.Parent = templateButton
-
-local itemCost = Instance.new("TextLabel")
-itemCost.Name = "ItemCost"
-itemCost.Size = UDim2.new(1, -12, 0, 18)
-itemCost.Position = UDim2.new(0, 6, 0, 52)
-itemCost.BackgroundTransparency = 1
-itemCost.Text = "Cost: 0"
-itemCost.TextColor3 = Color3.fromRGB(255, 210, 80)
-itemCost.Font = Enum.Font.GothamSemibold
-itemCost.TextSize = 12
-itemCost.Parent = templateButton
-
-local worldTemplate = Instance.new("TextButton")
-worldTemplate.Size = UDim2.new(0, 150, 0, 60)
-worldTemplate.BackgroundColor3 = Color3.fromRGB(65, 70, 90)
-worldTemplate.BorderSizePixel = 0
-worldTemplate.Text = ""
-worldTemplate.Visible = false
-worldTemplate.Parent = worldPanel
-
-local worldTemplateCorner = Instance.new("UICorner")
-worldTemplateCorner.CornerRadius = UDim.new(0, 10)
-worldTemplateCorner.Parent = worldTemplate
-
-local worldName = Instance.new("TextLabel")
-worldName.Name = "WorldName"
-worldName.Size = UDim2.new(1, -10, 0, 18)
-worldName.Position = UDim2.new(0, 5, 0, 8)
-worldName.BackgroundTransparency = 1
-worldName.Text = "World"
-worldName.TextColor3 = Color3.fromRGB(255, 255, 255)
-worldName.Font = Enum.Font.GothamBold
-worldName.TextSize = 13
-worldName.Parent = worldTemplate
-
-local worldCost = Instance.new("TextLabel")
-worldCost.Name = "WorldCost"
-worldCost.Size = UDim2.new(1, -10, 0, 16)
-worldCost.Position = UDim2.new(0, 5, 0, 30)
-worldCost.BackgroundTransparency = 1
-worldCost.Text = "Cost: 0"
-worldCost.TextColor3 = Color3.fromRGB(155, 208, 255)
-worldCost.Font = Enum.Font.Gotham
-worldCost.TextSize = 11
-worldCost.Parent = worldTemplate
-
-local petTemplate = Instance.new("TextButton")
-petTemplate.Size = UDim2.new(0, 190, 0, 70)
-petTemplate.BackgroundColor3 = Color3.fromRGB(80, 82, 92)
-petTemplate.BorderSizePixel = 0
-petTemplate.Text = ""
-petTemplate.Visible = false
-petTemplate.Parent = petPanel
-
-local petTemplateCorner = Instance.new("UICorner")
-petTemplateCorner.CornerRadius = UDim.new(0, 10)
-petTemplateCorner.Parent = petTemplate
-
-local petName = Instance.new("TextLabel")
-petName.Name = "PetName"
-petName.Size = UDim2.new(1, -12, 0, 18)
-petName.Position = UDim2.new(0, 6, 0, 8)
-petName.BackgroundTransparency = 1
-petName.Text = "Pet"
-petName.TextColor3 = Color3.fromRGB(255, 255, 255)
-petName.Font = Enum.Font.GothamBold
-petName.TextSize = 14
-petName.Parent = petTemplate
-
-local petMeta = Instance.new("TextLabel")
-petMeta.Name = "PetMeta"
-petMeta.Size = UDim2.new(1, -12, 0, 16)
-petMeta.Position = UDim2.new(0, 6, 0, 28)
-petMeta.BackgroundTransparency = 1
-petMeta.Text = "Cost: 0"
-petMeta.TextColor3 = Color3.fromRGB(220, 220, 220)
-petMeta.Font = Enum.Font.Gotham
-petMeta.TextSize = 11
-petMeta.Parent = petTemplate
-
-local petState = Instance.new("TextLabel")
-petState.Name = "PetState"
-petState.Size = UDim2.new(1, -12, 0, 16)
-petState.Position = UDim2.new(0, 6, 0, 46)
-petState.BackgroundTransparency = 1
-petState.Text = "Owned"
-petState.TextColor3 = Color3.fromRGB(110, 220, 140)
-petState.Font = Enum.Font.GothamSemibold
-petState.TextSize = 11
-petState.Parent = petTemplate
-
-local function refreshWorlds(data)
-    for _, child in ipairs(worldPanel:GetChildren()) do
-        if child:IsA("TextButton") and child ~= worldTemplate then
-            child:Destroy()
-        end
-    end
-
-    local xOffset = 10
-    for _, world in ipairs(data.UnlockedWorlds or {}) do
-        local clone = worldTemplate:Clone()
-        clone.Visible = true
-        clone.Position = UDim2.new(0, xOffset, 0, 12)
-        clone.Parent = worldPanel
-
-        local nameLabel = clone:FindFirstChild("WorldName")
-        if nameLabel then
-            nameLabel.Text = world.Name
-        end
-
-        local costLabel = clone:FindFirstChild("WorldCost")
-        if costLabel then
-            if world.Index == data.CurrentWorld then
-                costLabel.Text = "Current"
-                costLabel.TextColor3 = Color3.fromRGB(110, 220, 140)
-                clone.BackgroundColor3 = Color3.fromRGB(45, 80, 56)
-            else
-                costLabel.Text = "Use"
-                costLabel.TextColor3 = Color3.fromRGB(150, 200, 255)
-                clone.BackgroundColor3 = Color3.fromRGB(65, 70, 90)
-            end
-        end
-
-        clone.MouseButton1Click:Connect(function()
-            if world.Index ~= data.CurrentWorld then
-                remote:FireServer("ChangeWorld", world.Index)
-            end
-        end)
-
-        xOffset += 160
-    end
+local function new(class, props, parent)
+	local o = Instance.new(class)
+	for k, v in pairs(props) do o[k] = v end
+	o.Parent = parent
+	return o
 end
 
-local function refreshPets(data)
-    for _, child in ipairs(petPanel:GetChildren()) do
-        if child:IsA("TextButton") and child ~= petTemplate then
-            child:Destroy()
-        end
-    end
-
-    local xOffset = 10
-    local yOffset = 10
-    local count = 0
-
-    for _, pet in ipairs(data.AvailablePets or {}) do
-        local clone = petTemplate:Clone()
-        clone.Visible = true
-        clone.Position = UDim2.new(0, xOffset + (count % 2) * 200, 0, yOffset + math.floor(count / 2) * 80)
-        clone.Parent = petPanel
-
-        local nameLabel = clone:FindFirstChild("PetName")
-        if nameLabel then
-            nameLabel.Text = pet.Name
-        end
-
-        local metaLabel = clone:FindFirstChild("PetMeta")
-        if metaLabel then
-            metaLabel.Text = "+" .. tostring(pet.ClickBonus) .. " Click | +" .. tostring(pet.AutoBonus) .. " Auto"
-        end
-
-        local stateLabel = clone:FindFirstChild("PetState")
-        if stateLabel then
-            if pet.Owned then
-                stateLabel.Text = "Owned"
-                stateLabel.TextColor3 = Color3.fromRGB(110, 220, 140)
-                clone.BackgroundColor3 = Color3.fromRGB(50, 80, 58)
-            else
-                stateLabel.Text = "Buy: " .. tostring(pet.Cost)
-                stateLabel.TextColor3 = Color3.fromRGB(255, 210, 80)
-                clone.BackgroundColor3 = Color3.fromRGB(80, 82, 92)
-            end
-        end
-
-        clone.MouseButton1Click:Connect(function()
-            if not pet.Owned then
-                remote:FireServer("BuyPet", pet.Name)
-            end
-        end)
-
-        count += 1
-    end
+local function round(obj, r)
+	new("UICorner", {CornerRadius = UDim.new(0, r or 10)}, obj)
 end
 
-local function refreshBuffs(data)
-    for _, child in ipairs(buffPanel:GetChildren()) do
-        if child:IsA("TextButton") and child ~= templateButton then
-            child:Destroy()
-        end
-    end
+local gui = new("ScreenGui", {Name = "ClickerGui", ResetOnSpawn = false}, player:WaitForChild("PlayerGui"))
 
-    local xOffset = 10
-    local yOffset = 10
-    local count = 0
+------------------------------------------------------------------
+-- HUD (small, top-left, doesn't cover the map)
+------------------------------------------------------------------
+local hud = new("Frame", {Size = UDim2.new(0, 230, 0, 112), Position = UDim2.new(0, 12, 0, 12),
+	BackgroundColor3 = Color3.fromRGB(20, 22, 29), BackgroundTransparency = 0.15, BorderSizePixel = 0}, gui)
+round(hud, 12)
+new("UIListLayout", {Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder}, hud)
+new("UIPadding", {PaddingLeft = UDim.new(0, 10), PaddingTop = UDim.new(0, 6)}, hud)
 
-    for _, buff in ipairs(data.AvailableBuffs or {}) do
-        local clone = templateButton:Clone()
-        clone.Visible = true
-        clone.Position = UDim2.new(0, xOffset + (count % 4) * 220, 0, yOffset + math.floor(count / 4) * 82)
-        clone.Parent = buffPanel
-
-        local titleText = clone:FindFirstChild("ItemTitle")
-        if titleText then
-            titleText.Text = buff.Name
-        end
-
-        local descText = clone:FindFirstChild("ItemDesc")
-        if descText then
-            descText.Text = buff.Description
-        end
-
-        local costText = clone:FindFirstChild("ItemCost")
-        if costText then
-            if buff.Owned then
-                costText.Text = "Owned"
-                costText.TextColor3 = Color3.fromRGB(110, 220, 140)
-                clone.BackgroundColor3 = Color3.fromRGB(42, 70, 50)
-            else
-                costText.Text = "Cost: " .. tostring(buff.Cost)
-                costText.TextColor3 = Color3.fromRGB(255, 210, 80)
-                clone.BackgroundColor3 = Color3.fromRGB(80, 80, 90)
-            end
-        end
-
-        clone.MouseButton1Click:Connect(function()
-            if not buff.Owned then
-                remote:FireServer("BuyBuff", buff.Name)
-            end
-        end)
-
-        count += 1
-    end
+local function hudLabel(order, color, size)
+	return new("TextLabel", {Size = UDim2.new(1, -10, 0, size + 4), BackgroundTransparency = 1, LayoutOrder = order,
+		TextColor3 = color, Font = Enum.Font.GothamBold, TextSize = size, TextXAlignment = Enum.TextXAlignment.Left, Text = ""}, hud)
 end
+local coinLabel = hudLabel(1, Color3.fromRGB(255, 215, 90), 22)
+local clickLabel = hudLabel(2, Color3.new(1, 1, 1), 15)
+local autoLabel = hudLabel(3, Color3.new(1, 1, 1), 15)
+local infoLabel = hudLabel(4, Color3.fromRGB(190, 170, 255), 14)
 
-remote.OnClientEvent:Connect(function(type, data)
-    if type ~= "Sync" then
-        return
-    end
-
-    coinLabel.Text = "Coins: " .. tostring(data.Coins)
-    clickLabel.Text = "Per Click: " .. tostring(data.clickPower)
-    autoLabel.Text = "Auto / sec: " .. tostring(data.autoPerSecond)
-    rebirthLabel.Text = "Rebirths: " .. tostring(data.Rebirths)
-    titleLabel.Text = "Title: " .. tostring(data.CurrentTitle)
-    worldLabel.Text = "World: " .. tostring(data.CurrentWorld)
-    totalLabel.Text = "Total Earned: " .. tostring(data.TotalCoinsEarned)
-
-    if data.clickCost then
-        upgradeClick.Text = "Upgrade Click\nCost: " .. tostring(data.clickCost)
-    end
-
-    if data.autoCost then
-        upgradeAuto.Text = "Upgrade Auto\nCost: " .. tostring(data.autoCost)
-    end
-
-    refreshWorlds(data)
-    refreshPets(data)
-    refreshBuffs(data)
-end)
-
+------------------------------------------------------------------
+-- Click button (bottom center)
+------------------------------------------------------------------
+local clickButton = new("TextButton", {Size = UDim2.new(0, 200, 0, 64), AnchorPoint = Vector2.new(0.5, 1),
+	Position = UDim2.new(0.5, 0, 1, -24), Text = "CLICK!", TextColor3 = Color3.new(1, 1, 1),
+	Font = Enum.Font.GothamBold, TextSize = 28, BackgroundColor3 = Color3.fromRGB(70, 180, 110)}, gui)
+round(clickButton, 16)
 clickButton.MouseButton1Click:Connect(function()
-    remote:FireServer("Click")
+	remote:FireServer("Click")
 end)
 
-upgradeClick.MouseButton1Click:Connect(function()
-    remote:FireServer("UpgradeClick")
+------------------------------------------------------------------
+-- Hatch popup
+------------------------------------------------------------------
+local hatchLabel = new("TextLabel", {Size = UDim2.new(0, 420, 0, 60), AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 90), BackgroundColor3 = Color3.fromRGB(20, 22, 29), BackgroundTransparency = 0.1,
+	Font = Enum.Font.GothamBold, TextSize = 24, TextColor3 = Color3.new(1, 1, 1), Visible = false, Text = ""}, gui)
+round(hatchLabel, 14)
+local hatchToken = 0
+local function showHatch(name, rarity)
+	hatchToken += 1
+	local my = hatchToken
+	hatchLabel.Text = "You hatched a " .. name .. "!  (" .. rarity .. ")"
+	hatchLabel.TextColor3 = RARITY_COLORS[rarity] or Color3.new(1, 1, 1)
+	hatchLabel.Visible = true
+	task.delay(3.5, function()
+		if hatchToken == my then hatchLabel.Visible = false end
+	end)
+end
+
+------------------------------------------------------------------
+-- Side shop panel (slides in from the right, tab always visible)
+------------------------------------------------------------------
+local PANEL_W = 390
+local panel = new("Frame", {Size = UDim2.new(0, PANEL_W, 0, 470), AnchorPoint = Vector2.new(0, 0.5),
+	Position = UDim2.new(1, 0, 0.5, 0), BackgroundColor3 = Color3.fromRGB(20, 22, 29), BorderSizePixel = 0}, gui)
+round(panel, 14)
+
+local toggle = new("TextButton", {Size = UDim2.new(0, 54, 0, 120), AnchorPoint = Vector2.new(1, 0.5),
+	Position = UDim2.new(0, 0, 0.5, 0), Text = "SHOP\n<", TextColor3 = Color3.new(1, 1, 1),
+	Font = Enum.Font.GothamBold, TextSize = 16, BackgroundColor3 = Color3.fromRGB(75, 142, 255)}, panel)
+round(toggle, 12)
+
+local open = false
+toggle.MouseButton1Click:Connect(function()
+	open = not open
+	toggle.Text = open and "SHOP\n>" or "SHOP\n<"
+	TweenService:Create(panel, TweenInfo.new(0.25, Enum.EasingStyle.Quad),
+		{Position = open and UDim2.new(1, -PANEL_W, 0.5, 0) or UDim2.new(1, 0, 0.5, 0)}):Play()
 end)
 
-upgradeAuto.MouseButton1Click:Connect(function()
-    remote:FireServer("UpgradeAuto")
+local TABS = {"Upgrades", "Eggs", "Pets", "Buffs", "Worlds"}
+local currentTab = "Upgrades"
+local tabButtons = {}
+local tabBar = new("Frame", {Size = UDim2.new(1, -16, 0, 32), Position = UDim2.new(0, 8, 0, 8), BackgroundTransparency = 1}, panel)
+new("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4)}, tabBar)
+
+local content = new("ScrollingFrame", {Size = UDim2.new(1, -16, 1, -56), Position = UDim2.new(0, 8, 0, 48),
+	BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 5,
+	AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new()}, panel)
+new("UIListLayout", {Padding = UDim.new(0, 6)}, content)
+
+local data -- latest full data from server
+
+local function row(title, desc, btnText, color, callback, titleColor)
+	local f = new("Frame", {Size = UDim2.new(1, -8, 0, 64), BackgroundColor3 = Color3.fromRGB(44, 47, 60), BorderSizePixel = 0}, content)
+	round(f, 10)
+	new("TextLabel", {Text = title, Size = UDim2.new(1, -112, 0, 22), Position = UDim2.new(0, 8, 0, 5), BackgroundTransparency = 1,
+		TextColor3 = titleColor or Color3.new(1, 1, 1), Font = Enum.Font.GothamBold, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Left}, f)
+	new("TextLabel", {Text = desc, Size = UDim2.new(1, -112, 0, 32), Position = UDim2.new(0, 8, 0, 27), BackgroundTransparency = 1,
+		TextColor3 = Color3.fromRGB(200, 200, 205), Font = Enum.Font.Gotham, TextSize = 11, TextWrapped = true,
+		TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top}, f)
+	local b = new("TextButton", {Text = btnText, Size = UDim2.new(0, 96, 0, 42), Position = UDim2.new(1, -104, 0.5, -21),
+		BackgroundColor3 = color, TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold, TextSize = 13, TextWrapped = true}, f)
+	round(b, 8)
+	if callback then b.MouseButton1Click:Connect(callback) end
+end
+
+local GREEN, BLUE, ORANGE, PURPLE, GREY = Color3.fromRGB(60, 160, 90), Color3.fromRGB(80, 120, 255),
+	Color3.fromRGB(240, 120, 70), Color3.fromRGB(160, 100, 250), Color3.fromRGB(90, 92, 105)
+
+local function render()
+	for _, c in ipairs(content:GetChildren()) do
+		if c:IsA("Frame") then c:Destroy() end
+	end
+	for name, b in pairs(tabButtons) do
+		b.BackgroundColor3 = (name == currentTab) and BLUE or GREY
+	end
+	if not data then return end
+
+	if currentTab == "Upgrades" then
+		row("Upgrade Click", "+1 base click power", fmt(data.clickCost) .. " coins", BLUE, function() remote:FireServer("UpgradeClick") end)
+		row("Upgrade Auto", "+1 base coins per second", fmt(data.autoCost) .. " coins", ORANGE, function() remote:FireServer("UpgradeAuto") end)
+		local ready = data.TotalCoinsEarned >= data.RebirthCost
+		row("Rebirth (" .. data.Rebirths .. ")",
+			"Needs " .. fmt(data.RebirthCost) .. " total earned (you: " .. fmt(data.TotalCoinsEarned) .. "). Resets coins, upgrades & worlds. Keeps pets, buffs, titles. Permanent income boost!",
+			ready and "REBIRTH!" or "Locked", ready and PURPLE or GREY, function() remote:FireServer("Rebirth") end)
+
+	elseif currentTab == "Eggs" then
+		for _, egg in ipairs(data.Eggs) do
+			row(egg.Name, egg.Odds, "Hatch\n" .. fmt(egg.Cost), GREEN, function() remote:FireServer("HatchEgg", egg.Name) end)
+		end
+
+	elseif currentTab == "Pets" then
+		row("Equipped: " .. data.EquippedCount .. "/" .. data.MaxEquipped, "Equipped pets float around you and give bonuses.", "", GREY, nil)
+		for i, pet in ipairs(data.Pets) do
+			row(pet.Name .. " [" .. pet.Rarity .. "]", "+" .. fmt(pet.Click) .. " click  |  +" .. fmt(pet.Auto) .. " auto",
+				pet.Equipped and "Unequip" or "Equip", pet.Equipped and ORANGE or GREEN,
+				function() remote:FireServer("TogglePet", i) end, RARITY_COLORS[pet.Rarity])
+		end
+
+	elseif currentTab == "Buffs" then
+		for _, b in ipairs(data.Buffs) do
+			row(b.Name, b.Description, b.Owned and "Owned" or fmt(b.Cost) .. " coins", b.Owned and GREY or BLUE,
+				function() if not b.Owned then remote:FireServer("BuyBuff", b.Name) end end)
+		end
+		for _, t in ipairs(data.Titles) do
+			row("Title: " .. t, "Click to wear this title", t == data.CurrentTitle and "Wearing" or "Wear",
+				t == data.CurrentTitle and GREY or GREEN, function() remote:FireServer("SetTitle", t) end)
+		end
+
+	elseif currentTab == "Worlds" then
+		for _, w in ipairs(data.Worlds) do
+			local desc = "x" .. w.CoinMultiplier .. " coin multiplier"
+			if w.Unlocked then
+				local here = w.Index == data.CurrentWorld
+				row(w.Name, desc, here and "Current" or "Travel", here and GREY or GREEN,
+					function() if not here then remote:FireServer("ChangeWorld", w.Index) end end)
+			else
+				row(w.Name, desc, "Unlock\n" .. fmt(w.UnlockCost), PURPLE, function() remote:FireServer("UnlockWorld", w.Index) end)
+			end
+		end
+	end
+end
+
+for i, name in ipairs(TABS) do
+	local b = new("TextButton", {Text = name, Size = UDim2.new(0.2, -4, 1, 0), Font = Enum.Font.GothamBold, TextSize = 11,
+		TextColor3 = Color3.new(1, 1, 1), BackgroundColor3 = GREY, LayoutOrder = i}, tabBar)
+	round(b, 8)
+	tabButtons[name] = b
+	b.MouseButton1Click:Connect(function()
+		currentTab = name
+		render()
+	end)
+end
+
+------------------------------------------------------------------
+-- Floating pets around the player
+------------------------------------------------------------------
+local petFolder = new("Folder", {Name = "MyPets"}, workspace)
+local petParts = {}
+
+local function rebuildPets()
+	for _, p in ipairs(petParts) do p:Destroy() end
+	petParts = {}
+	if not data then return end
+	local char = player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	for _, pet in ipairs(data.Pets) do
+		if pet.Equipped then
+			local part = new("Part", {Shape = Enum.PartType.Ball, Size = Vector3.new(1.8, 1.8, 1.8), Anchored = true,
+				CanCollide = false, CanQuery = false, CanTouch = false, Material = Enum.Material.Neon,
+				Color = RARITY_COLORS[pet.Rarity] or Color3.new(1, 1, 1), Position = root and root.Position or Vector3.zero}, petFolder)
+			local bb = new("BillboardGui", {Size = UDim2.new(0, 100, 0, 24), StudsOffset = Vector3.new(0, 2, 0), AlwaysOnTop = true}, part)
+			new("TextLabel", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = pet.Name, Font = Enum.Font.GothamBold,
+				TextSize = 14, TextColor3 = RARITY_COLORS[pet.Rarity] or Color3.new(1, 1, 1), TextStrokeTransparency = 0.4}, bb)
+			table.insert(petParts, part)
+		end
+	end
+end
+
+RunService.RenderStepped:Connect(function()
+	local char = player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if not root then return end
+	local n, t = #petParts, os.clock()
+	for i, part in ipairs(petParts) do
+		local angle = (i / n) * math.pi * 2 + t * 0.7
+		local target = root.Position + Vector3.new(math.cos(angle) * 5, 2.5 + math.sin(t * 2 + i) * 0.6, math.sin(angle) * 5)
+		part.Position = part.Position:Lerp(target, 0.15)
+	end
 end)
 
-rebirthButton.MouseButton1Click:Connect(function()
-    remote:FireServer("Rebirth")
+------------------------------------------------------------------
+-- Server events
+------------------------------------------------------------------
+local function updateHud()
+	if not data then return end
+	coinLabel.Text = "Coins: " .. fmt(data.Coins)
+	clickLabel.Text = "Per Click: " .. fmt(data.clickPower)
+	autoLabel.Text = "Auto / sec: " .. fmt(data.autoPerSecond)
+	infoLabel.Text = "Rebirths: " .. data.Rebirths .. " | " .. tostring(data.CurrentTitle)
+end
+
+remote.OnClientEvent:Connect(function(kind, a, b)
+	if kind == "Sync" then
+		data = a
+		updateHud()
+		rebuildPets()
+		render()
+	elseif kind == "Coins" and data then
+		for k, v in pairs(a) do data[k] = v end
+		updateHud()
+	elseif kind == "Hatched" then
+		showHatch(a, b)
+	end
 end)
 
+player.CharacterAdded:Connect(function()
+	task.wait(1)
+	rebuildPets()
+end)
+
+render()
 remote:FireServer("RequestSync")

@@ -1,416 +1,348 @@
--- ServerScriptService > ClickerGameServer.lua
+-- ServerScriptService > ClickerGameServer (Script)
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local remote = ReplicatedStorage:FindFirstChild("ClickerRemote")
 if not remote then
-    remote = Instance.new("RemoteEvent")
-    remote.Name = "ClickerRemote"
-    remote.Parent = ReplicatedStorage
+	remote = Instance.new("RemoteEvent")
+	remote.Name = "ClickerRemote"
+	remote.Parent = ReplicatedStorage
 end
 
+local MAX_EQUIPPED = 5
+local MAX_PETS = 50
+local rng = Random.new()
+
+-- All values are whole numbers so nothing ever shows long decimals
 local PETS = {
-    {Name = "Cat", Cost = 100, ClickBonus = 2, AutoBonus = 0.5, Rarity = "Common"},
-    {Name = "Dog", Cost = 250, ClickBonus = 4, AutoBonus = 1, Rarity = "Common"},
-    {Name = "Dragon", Cost = 1000, ClickBonus = 10, AutoBonus = 5, Rarity = "Rare"},
-    {Name = "Phoenix", Cost = 5000, ClickBonus = 25, AutoBonus = 15, Rarity = "Rare"},
-    {Name = "Unicorn", Cost = 15000, ClickBonus = 50, AutoBonus = 30, Rarity = "Epic"},
-    {Name = "Shadow Beast", Cost = 50000, ClickBonus = 100, AutoBonus = 75, Rarity = "Epic"},
-    {Name = "God Slayer", Cost = 200000, ClickBonus = 250, AutoBonus = 200, Rarity = "Legendary"}
+	Cat = {Click = 2, Auto = 1, Rarity = "Common"},
+	Dog = {Click = 3, Auto = 2, Rarity = "Common"},
+	Bunny = {Click = 5, Auto = 3, Rarity = "Common"},
+	Fox = {Click = 12, Auto = 8, Rarity = "Rare"},
+	Dragon = {Click = 25, Auto = 15, Rarity = "Rare"},
+	Phoenix = {Click = 60, Auto = 40, Rarity = "Epic"},
+	Unicorn = {Click = 120, Auto = 80, Rarity = "Epic"},
+	["Shadow Beast"] = {Click = 300, Auto = 200, Rarity = "Legendary"},
+	["God Slayer"] = {Click = 800, Auto = 600, Rarity = "Mythic"},
+}
+
+local EGGS = {
+	{Name = "Basic Egg", Cost = 100, Pets = {{"Cat", 45}, {"Dog", 35}, {"Bunny", 17}, {"Fox", 3}}},
+	{Name = "Rare Egg", Cost = 2500, Pets = {{"Bunny", 30}, {"Fox", 40}, {"Dragon", 25}, {"Phoenix", 5}}},
+	{Name = "Epic Egg", Cost = 40000, Pets = {{"Dragon", 35}, {"Phoenix", 35}, {"Unicorn", 25}, {"Shadow Beast", 5}}},
+	{Name = "Mythic Egg", Cost = 500000, Pets = {{"Unicorn", 50}, {"Shadow Beast", 40}, {"God Slayer", 10}}},
 }
 
 local BUFFS = {
-    {Name = "Golden Touch", Cost = 5000, Type = "click", Value = 1.15, Description = "+15% click power"},
-    {Name = "Turbo Engine", Cost = 12000, Type = "auto", Value = 1.2, Description = "+20% auto income"},
-    {Name = "Rebirth Boost", Cost = 25000, Type = "rebirth", Value = 1.25, Description = "+25% stronger rebirths"},
-    {Name = "Lucky Title", Cost = 1500, Type = "title", Value = "Lucky", Description = "Title unlocked: Lucky"},
-    {Name = "King Title", Cost = 5000, Type = "title", Value = "King", Description = "Title unlocked: King"},
-    {Name = "Legendary Egg", Cost = 20000, Type = "pet", Value = "Dragon", Description = "Unlocks Dragon pet"}
+	{Name = "Golden Touch", Cost = 5000, Type = "click", Value = 1.15, Description = "+15% click power"},
+	{Name = "Turbo Engine", Cost = 12000, Type = "auto", Value = 1.2, Description = "+20% auto income"},
+	{Name = "Rebirth Boost", Cost = 25000, Type = "rebirth", Value = 1.5, Description = "Rebirth bonuses +50% stronger"},
+	{Name = "Lucky Title", Cost = 1500, Type = "title", Value = "Lucky", Description = "Unlocks the Lucky title"},
+	{Name = "King Title", Cost = 5000, Type = "title", Value = "King", Description = "Unlocks the King title"},
+	{Name = "Dragon Gift", Cost = 20000, Type = "pet", Value = "Dragon", Description = "Gives you a free Dragon"},
 }
 
 local WORLDS = {
-    {Name = "Normal", Index = 1, UnlockCost = 0, CoinMultiplier = 1},
-    {Name = "Desert", Index = 2, UnlockCost = 5000, CoinMultiplier = 2},
-    {Name = "Ice Kingdom", Index = 3, UnlockCost = 50000, CoinMultiplier = 3},
-    {Name = "Shadow Realm", Index = 4, UnlockCost = 500000, CoinMultiplier = 5},
-    {Name = "Celestial", Index = 5, UnlockCost = 5000000, CoinMultiplier = 10},
-    {Name = "Infinite Void", Index = 6, UnlockCost = 100000000, CoinMultiplier = 25}
+	{Name = "Normal", Index = 1, UnlockCost = 0, CoinMultiplier = 1},
+	{Name = "Desert", Index = 2, UnlockCost = 5000, CoinMultiplier = 2},
+	{Name = "Ice Kingdom", Index = 3, UnlockCost = 50000, CoinMultiplier = 3},
+	{Name = "Shadow Realm", Index = 4, UnlockCost = 500000, CoinMultiplier = 5},
+	{Name = "Celestial", Index = 5, UnlockCost = 5000000, CoinMultiplier = 10},
+	{Name = "Infinite Void", Index = 6, UnlockCost = 100000000, CoinMultiplier = 25},
 }
 
 local playerData = {}
 
-local function getPetInfo(petName)
-    for _, pet in ipairs(PETS) do
-        if pet.Name == petName then
-            return pet
-        end
-    end
-    return nil
-end
-
-local function getBuffInfo(buffName)
-    for _, buff in ipairs(BUFFS) do
-        if buff.Name == buffName then
-            return buff
-        end
-    end
-    return nil
-end
-
 local function getData(player)
-    if not playerData[player] then
-        playerData[player] = {
-            Coins = 0,
-            clickPower = 1,
-            autoPerSecond = 0,
-            clickLevel = 1,
-            autoLevel = 1,
-            Rebirths = 0,
-            TotalCoinsEarned = 0,
-            CurrentWorld = 1,
-            UnlockedWorlds = {1},
-            Pets = {},
-            PetClickBonus = 0,
-            PetAutoBonus = 0,
-            Buffs = {},
-            Titles = {},
-            CurrentTitle = "None",
-            clickBuffMultiplier = 1,
-            autoBuffMultiplier = 1,
-            rebirthBuffMultiplier = 1
-        }
-    end
-    return playerData[player]
+	if not playerData[player] then
+		playerData[player] = {
+			Coins = 0, TotalCoinsEarned = 0,
+			clickPower = 1, autoPerSecond = 0, clickLevel = 1, autoLevel = 1,
+			Rebirths = 0,
+			CurrentWorld = 1, UnlockedWorlds = {1},
+			Pets = {}, Equipped = {},
+			Buffs = {}, Titles = {}, CurrentTitle = "None",
+			clickBuff = 1, autoBuff = 1, rebirthBuff = 1,
+		}
+	end
+	return playerData[player]
 end
 
-local function getClickCost(level)
-    return 25 + (level - 1) * 25
+local function getClickCost(level) return 25 + (level - 1) * 25 end
+local function getAutoCost(level) return 50 + (level - 1) * 40 end
+local function getRebirthCost(data) return 100000 * (data.Rebirths + 1) end
+
+local function worldMult(index)
+	for _, w in ipairs(WORLDS) do
+		if w.Index == index then return w.CoinMultiplier end
+	end
+	return 1
 end
 
-local function getAutoCost(level)
-    return 50 + (level - 1) * 40
+local function petBonuses(data)
+	local c, a = 0, 0
+	for i, name in ipairs(data.Pets) do
+		if data.Equipped[i] then
+			c += PETS[name].Click
+			a += PETS[name].Auto
+		end
+	end
+	return c, a
 end
 
-local function getWorldMultiplier(worldIndex)
-    for _, world in ipairs(WORLDS) do
-        if world.Index == worldIndex then
-            return world.CoinMultiplier
-        end
-    end
-    return 1
+local function rebirthBoost(data)
+	return 1 + data.Rebirths * 0.15 * data.rebirthBuff
 end
 
-local function calculateClickPower(data)
-    local baseClick = data.clickPower
-    local rebirthBoost = 1 + (data.Rebirths * 0.15)
-    local worldMult = getWorldMultiplier(data.CurrentWorld)
-    return (baseClick * worldMult * rebirthBoost * data.clickBuffMultiplier) + data.PetClickBonus
+local function calcClick(data)
+	local pc = petBonuses(data)
+	return math.floor(data.clickPower * worldMult(data.CurrentWorld) * rebirthBoost(data) * data.clickBuff + pc)
 end
 
-local function calculateAutoPerSec(data)
-    local baseAuto = data.autoPerSecond
-    local rebirthBoost = 1 + (data.Rebirths * 0.2)
-    local worldMult = getWorldMultiplier(data.CurrentWorld)
-    return (baseAuto * worldMult * rebirthBoost * data.autoBuffMultiplier) + data.PetAutoBonus
+local function calcAuto(data)
+	local _, pa = petBonuses(data)
+	return math.floor(data.autoPerSecond * worldMult(data.CurrentWorld) * rebirthBoost(data) * data.autoBuff + pa)
 end
 
+local function equippedCount(data)
+	local n = 0
+	for _, v in pairs(data.Equipped) do if v then n += 1 end end
+	return n
+end
+
+local function updateLeaderstats(player, data)
+	local ls = player:FindFirstChild("leaderstats")
+	if not ls then return end
+	ls.Coins.Value = data.Coins
+	ls.Rebirths.Value = data.Rebirths
+	ls.Title.Value = data.CurrentTitle
+end
+
+-- light update (used for clicks + auto income)
+local function pushCoins(player, data)
+	updateLeaderstats(player, data)
+	remote:FireClient(player, "Coins", {
+		Coins = data.Coins,
+		TotalCoinsEarned = data.TotalCoinsEarned,
+		clickPower = calcClick(data),
+		autoPerSecond = calcAuto(data),
+	})
+end
+
+-- full update (used when something is bought / changed)
 local function syncClient(player)
-    local data = getData(player)
-    local unlockedWorlds = {}
+	local data = getData(player)
+	updateLeaderstats(player, data)
 
-    for _, worldIdx in ipairs(data.UnlockedWorlds) do
-        for _, world in ipairs(WORLDS) do
-            if world.Index == worldIdx then
-                table.insert(unlockedWorlds, world)
-            end
-        end
-    end
+	local worlds = {}
+	for _, w in ipairs(WORLDS) do
+		table.insert(worlds, {Name = w.Name, Index = w.Index, UnlockCost = w.UnlockCost,
+			CoinMultiplier = w.CoinMultiplier, Unlocked = table.find(data.UnlockedWorlds, w.Index) ~= nil})
+	end
 
-    local availablePets = {}
-    for _, pet in ipairs(PETS) do
-        table.insert(availablePets, {
-            Name = pet.Name,
-            Cost = pet.Cost,
-            ClickBonus = pet.ClickBonus,
-            AutoBonus = pet.AutoBonus,
-            Rarity = pet.Rarity,
-            Owned = table.find(data.Pets, pet.Name) ~= nil
-        })
-    end
+	local pets = {}
+	for i, name in ipairs(data.Pets) do
+		table.insert(pets, {Name = name, Rarity = PETS[name].Rarity, Click = PETS[name].Click,
+			Auto = PETS[name].Auto, Equipped = data.Equipped[i] == true})
+	end
 
-    local availableBuffs = {}
-    for _, buff in ipairs(BUFFS) do
-        table.insert(availableBuffs, {
-            Name = buff.Name,
-            Cost = buff.Cost,
-            Type = buff.Type,
-            Value = buff.Value,
-            Description = buff.Description,
-            Owned = table.find(data.Buffs, buff.Name) ~= nil
-        })
-    end
+	local eggs = {}
+	for _, egg in ipairs(EGGS) do
+		local total = 0
+		for _, p in ipairs(egg.Pets) do total += p[2] end
+		local odds = {}
+		for _, p in ipairs(egg.Pets) do
+			table.insert(odds, p[1] .. " " .. math.floor(p[2] / total * 100 + 0.5) .. "%")
+		end
+		table.insert(eggs, {Name = egg.Name, Cost = egg.Cost, Odds = table.concat(odds, " • ")})
+	end
 
-    remote:FireClient(player, "Sync", {
-        Coins = data.Coins,
-        clickPower = calculateClickPower(data),
-        autoPerSecond = calculateAutoPerSec(data),
-        clickCost = getClickCost(data.clickLevel),
-        autoCost = getAutoCost(data.autoLevel),
-        clickLevel = data.clickLevel,
-        autoLevel = data.autoLevel,
-        Rebirths = data.Rebirths,
-        TotalCoinsEarned = data.TotalCoinsEarned,
-        CurrentWorld = data.CurrentWorld,
-        CurrentTitle = data.CurrentTitle,
-        UnlockedWorlds = unlockedWorlds,
-        AvailablePets = availablePets,
-        OwnedPets = data.Pets,
-        PetClickBonus = data.PetClickBonus,
-        PetAutoBonus = data.PetAutoBonus,
-        AvailableBuffs = availableBuffs,
-        OwnedBuffs = data.Buffs,
-        Titles = data.Titles,
-        clickBuffMultiplier = data.clickBuffMultiplier,
-        autoBuffMultiplier = data.autoBuffMultiplier,
-        rebirthBuffMultiplier = data.rebirthBuffMultiplier
-    })
+	local buffs = {}
+	for _, b in ipairs(BUFFS) do
+		table.insert(buffs, {Name = b.Name, Cost = b.Cost, Description = b.Description,
+			Owned = table.find(data.Buffs, b.Name) ~= nil})
+	end
+
+	remote:FireClient(player, "Sync", {
+		Coins = data.Coins, TotalCoinsEarned = data.TotalCoinsEarned,
+		clickPower = calcClick(data), autoPerSecond = calcAuto(data),
+		clickCost = getClickCost(data.clickLevel), autoCost = getAutoCost(data.autoLevel),
+		Rebirths = data.Rebirths, RebirthCost = getRebirthCost(data),
+		CurrentWorld = data.CurrentWorld, CurrentTitle = data.CurrentTitle,
+		Worlds = worlds, Pets = pets, Eggs = eggs, Buffs = buffs,
+		MaxEquipped = MAX_EQUIPPED, EquippedCount = equippedCount(data),
+		Titles = data.Titles,
+	})
 end
 
 local function createLeaderstats(player)
-    local leaderstats = Instance.new("Folder")
-    leaderstats.Name = "leaderstats"
-    leaderstats.Parent = player
+	local ls = Instance.new("Folder")
+	ls.Name = "leaderstats"
+	ls.Parent = player
+	for _, info in ipairs({{"Title", "StringValue", "None"}, {"Rebirths", "IntValue", 0}, {"Coins", "IntValue", 0}}) do
+		local v = Instance.new(info[2])
+		v.Name = info[1]
+		v.Value = info[3]
+		v.Parent = ls
+	end
+end
 
-    local coins = Instance.new("IntValue")
-    coins.Name = "Coins"
-    coins.Value = 0
-    coins.Parent = leaderstats
+local function addPet(data, name)
+	table.insert(data.Pets, name)
+	local idx = #data.Pets
+	if equippedCount(data) < MAX_EQUIPPED then
+		data.Equipped[idx] = true
+	end
+end
 
-    local rebirths = Instance.new("IntValue")
-    rebirths.Name = "Rebirths"
-    rebirths.Value = 0
-    rebirths.Parent = leaderstats
-
-    local titleValue = Instance.new("StringValue")
-    titleValue.Name = "Title"
-    titleValue.Value = "None"
-    titleValue.Parent = leaderstats
-
-    return coins, rebirths, titleValue
+local function rollEgg(egg)
+	local total = 0
+	for _, p in ipairs(egg.Pets) do total += p[2] end
+	local roll = rng:NextNumber() * total
+	for _, p in ipairs(egg.Pets) do
+		roll -= p[2]
+		if roll <= 0 then return p[1] end
+	end
+	return egg.Pets[1][1]
 end
 
 Players.PlayerAdded:Connect(function(player)
-    local coinsStats, rebirtStats, titleStat = createLeaderstats(player)
-    local data = getData(player)
+	createLeaderstats(player)
+	local data = getData(player)
+	syncClient(player)
 
-    local function updateDisplay()
-        coinsStats.Value = data.Coins
-        rebirtStats.Value = data.Rebirths
-        titleStat.Value = data.CurrentTitle
-    end
-
-    updateDisplay()
-
-    task.spawn(function()
-        while player.Parent do
-            local d = getData(player)
-            local autoPerSec = calculateAutoPerSec(d)
-            if autoPerSec > 0 then
-                d.Coins += math.floor(autoPerSec)
-                d.TotalCoinsEarned += math.floor(autoPerSec)
-                updateDisplay()
-                syncClient(player)
-            end
-            task.wait(1)
-        end
-    end)
-
-    syncClient(player)
+	task.spawn(function()
+		while player.Parent do
+			task.wait(1)
+			local gain = calcAuto(data)
+			if gain > 0 then
+				data.Coins += gain
+				data.TotalCoinsEarned += gain
+				pushCoins(player, data)
+			end
+		end
+	end)
 end)
 
 Players.PlayerRemoving:Connect(function(player)
-    playerData[player] = nil
+	playerData[player] = nil
 end)
 
-remote.OnServerEvent:Connect(function(player, action, ...)
-    local data = getData(player)
-    local args = {...}
+remote.OnServerEvent:Connect(function(player, action, arg)
+	local data = getData(player)
 
-    if action == "RequestSync" then
-        syncClient(player)
-        return
-    end
+	local function spend(cost)
+		if data.Coins >= cost then
+			data.Coins -= cost
+			return true
+		end
+		return false
+	end
 
-    if action == "Click" then
-        local clickPower = calculateClickPower(data)
-        data.Coins += clickPower
-        data.TotalCoinsEarned += clickPower
+	if action == "RequestSync" then
+		syncClient(player)
 
-        local leaderstats = player:FindFirstChild("leaderstats")
-        if leaderstats and leaderstats:FindFirstChild("Coins") then
-            leaderstats.Coins.Value = data.Coins
-        end
-        syncClient(player)
-        return
-    end
+	elseif action == "Click" then
+		local p = calcClick(data)
+		data.Coins += p
+		data.TotalCoinsEarned += p
+		pushCoins(player, data)
 
-    if action == "UpgradeClick" then
-        local cost = getClickCost(data.clickLevel)
-        if data.Coins >= cost then
-            data.Coins -= cost
-            data.clickPower += 1
-            data.clickLevel += 1
+	elseif action == "UpgradeClick" then
+		if spend(getClickCost(data.clickLevel)) then
+			data.clickPower += 1
+			data.clickLevel += 1
+			syncClient(player)
+		end
 
-            local leaderstats = player:FindFirstChild("leaderstats")
-            if leaderstats and leaderstats:FindFirstChild("Coins") then
-                leaderstats.Coins.Value = data.Coins
-            end
-            syncClient(player)
-        end
-        return
-    end
+	elseif action == "UpgradeAuto" then
+		if spend(getAutoCost(data.autoLevel)) then
+			data.autoPerSecond += 1
+			data.autoLevel += 1
+			syncClient(player)
+		end
 
-    if action == "UpgradeAuto" then
-        local cost = getAutoCost(data.autoLevel)
-        if data.Coins >= cost then
-            data.Coins -= cost
-            data.autoPerSecond += 1
-            data.autoLevel += 1
+	elseif action == "HatchEgg" then
+		if typeof(arg) ~= "string" or #data.Pets >= MAX_PETS then return end
+		for _, egg in ipairs(EGGS) do
+			if egg.Name == arg then
+				if spend(egg.Cost) then
+					local petName = rollEgg(egg)
+					addPet(data, petName)
+					remote:FireClient(player, "Hatched", petName, PETS[petName].Rarity)
+					syncClient(player)
+				end
+				break
+			end
+		end
 
-            local leaderstats = player:FindFirstChild("leaderstats")
-            if leaderstats and leaderstats:FindFirstChild("Coins") then
-                leaderstats.Coins.Value = data.Coins
-            end
-            syncClient(player)
-        end
-        return
-    end
+	elseif action == "TogglePet" then
+		if typeof(arg) ~= "number" then return end
+		local idx = math.floor(arg)
+		if not data.Pets[idx] then return end
+		if data.Equipped[idx] then
+			data.Equipped[idx] = nil
+		elseif equippedCount(data) < MAX_EQUIPPED then
+			data.Equipped[idx] = true
+		end
+		syncClient(player)
 
-    if action == "BuyPet" then
-        local petName = args[1]
-        local pet = getPetInfo(petName)
+	elseif action == "BuyBuff" then
+		if typeof(arg) ~= "string" or table.find(data.Buffs, arg) then return end
+		for _, b in ipairs(BUFFS) do
+			if b.Name == arg then
+				if spend(b.Cost) then
+					table.insert(data.Buffs, b.Name)
+					if b.Type == "click" then data.clickBuff *= b.Value
+					elseif b.Type == "auto" then data.autoBuff *= b.Value
+					elseif b.Type == "rebirth" then data.rebirthBuff *= b.Value
+					elseif b.Type == "title" then
+						table.insert(data.Titles, b.Value)
+						data.CurrentTitle = b.Value
+					elseif b.Type == "pet" then
+						addPet(data, b.Value)
+					end
+					syncClient(player)
+				end
+				break
+			end
+		end
 
-        if pet and data.Coins >= pet.Cost then
-            if not table.find(data.Pets, petName) then
-                data.Coins -= pet.Cost
-                table.insert(data.Pets, petName)
-                data.PetClickBonus += pet.ClickBonus
-                data.PetAutoBonus += pet.AutoBonus
+	elseif action == "UnlockWorld" then
+		if typeof(arg) ~= "number" or table.find(data.UnlockedWorlds, arg) then return end
+		for _, w in ipairs(WORLDS) do
+			if w.Index == arg then
+				if spend(w.UnlockCost) then
+					table.insert(data.UnlockedWorlds, w.Index)
+					syncClient(player)
+				end
+				break
+			end
+		end
 
-                local leaderstats = player:FindFirstChild("leaderstats")
-                if leaderstats and leaderstats:FindFirstChild("Coins") then
-                    leaderstats.Coins.Value = data.Coins
-                end
-                syncClient(player)
-            end
-        end
-        return
-    end
+	elseif action == "ChangeWorld" then
+		if typeof(arg) == "number" and table.find(data.UnlockedWorlds, arg) then
+			data.CurrentWorld = arg
+			syncClient(player)
+		end
 
-    if action == "BuyBuff" then
-        local buffName = args[1]
-        local buff = getBuffInfo(buffName)
+	elseif action == "SetTitle" then
+		if typeof(arg) == "string" and table.find(data.Titles, arg) then
+			data.CurrentTitle = arg
+			syncClient(player)
+		end
 
-        if buff and data.Coins >= buff.Cost then
-            if not table.find(data.Buffs, buffName) then
-                data.Coins -= buff.Cost
-                table.insert(data.Buffs, buffName)
-
-                if buff.Type == "click" then
-                    data.clickBuffMultiplier *= buff.Value
-                elseif buff.Type == "auto" then
-                    data.autoBuffMultiplier *= buff.Value
-                elseif buff.Type == "rebirth" then
-                    data.rebirthBuffMultiplier *= buff.Value
-                elseif buff.Type == "title" then
-                    if not table.find(data.Titles, buff.Value) then
-                        table.insert(data.Titles, buff.Value)
-                    end
-                    data.CurrentTitle = buff.Value
-                elseif buff.Type == "pet" then
-                    local petToUnlock = getPetInfo(buff.Value)
-                    if petToUnlock and not table.find(data.Pets, buff.Value) then
-                        table.insert(data.Pets, buff.Value)
-                        data.PetClickBonus += petToUnlock.ClickBonus
-                        data.PetAutoBonus += petToUnlock.AutoBonus
-                    end
-                end
-
-                local leaderstats = player:FindFirstChild("leaderstats")
-                if leaderstats and leaderstats:FindFirstChild("Coins") then
-                    leaderstats.Coins.Value = data.Coins
-                end
-
-                if leaderstats and leaderstats:FindFirstChild("Title") then
-                    leaderstats.Title.Value = data.CurrentTitle
-                end
-
-                syncClient(player)
-            end
-        end
-        return
-    end
-
-    if action == "UnlockWorld" then
-        local worldIndex = args[1]
-        local world = nil
-        for _, w in ipairs(WORLDS) do
-            if w.Index == worldIndex then
-                world = w
-                break
-            end
-        end
-
-        if world and data.Coins >= world.UnlockCost and not table.find(data.UnlockedWorlds, worldIndex) then
-            data.Coins -= world.UnlockCost
-            table.insert(data.UnlockedWorlds, worldIndex)
-
-            local leaderstats = player:FindFirstChild("leaderstats")
-            if leaderstats and leaderstats:FindFirstChild("Coins") then
-                leaderstats.Coins.Value = data.Coins
-            end
-            syncClient(player)
-        end
-        return
-    end
-
-    if action == "ChangeWorld" then
-        local worldIndex = args[1]
-        if table.find(data.UnlockedWorlds, worldIndex) then
-            data.CurrentWorld = worldIndex
-            syncClient(player)
-        end
-        return
-    end
-
-    if action == "Rebirth" then
-        if data.TotalCoinsEarned >= 100000 then
-            data.Coins = 0
-            data.clickPower = 1
-            data.autoPerSecond = 0
-            data.clickLevel = 1
-            data.autoLevel = 1
-            data.Rebirths += 1
-            data.TotalCoinsEarned = 0
-            data.CurrentWorld = 1
-            data.UnlockedWorlds = {1}
-            data.Pets = {}
-            data.PetClickBonus = 0
-            data.PetAutoBonus = 0
-            data.clickBuffMultiplier = math.max(1, data.clickBuffMultiplier * data.rebirthBuffMultiplier)
-            data.autoBuffMultiplier = math.max(1, data.autoBuffMultiplier * data.rebirthBuffMultiplier)
-
-            local leaderstats = player:FindFirstChild("leaderstats")
-            if leaderstats then
-                if leaderstats:FindFirstChild("Coins") then
-                    leaderstats.Coins.Value = 0
-                end
-                if leaderstats:FindFirstChild("Rebirths") then
-                    leaderstats.Rebirths.Value = data.Rebirths
-                end
-            end
-            syncClient(player)
-        end
-        return
-    end
+	elseif action == "Rebirth" then
+		if data.TotalCoinsEarned >= getRebirthCost(data) then
+			data.Rebirths += 1
+			data.Coins = 0
+			data.TotalCoinsEarned = 0
+			data.clickPower, data.autoPerSecond = 1, 0
+			data.clickLevel, data.autoLevel = 1, 1
+			data.CurrentWorld = 1
+			data.UnlockedWorlds = {1}
+			-- pets, buffs and titles are kept after a rebirth
+			syncClient(player)
+		end
+	end
 end)
